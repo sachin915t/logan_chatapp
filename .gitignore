@@ -1,0 +1,22 @@
+.gitignore# frontend
+venv/
+__pycache__/
+*.pyc
+chat.db
+.env
+
+# backend
+venv/
+__pycache__/
+*.pyc
+chat.db
+.env
+
+# database
+chat.db
+
+# environment
+.env
+
+# system
+.DS_Store
