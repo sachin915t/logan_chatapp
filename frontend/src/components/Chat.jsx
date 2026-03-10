@@ -326,21 +326,15 @@ const Chat = ({ username, roomId, avatar, onLogout }) => {
       <div className="px-4 py-3 border-t border-[#1a1a1a] bg-[#0d0d0d] shrink-0"
   style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
   <div className="flex gap-2.5 items-center">
-    <input
-      className="chat-input"
-      type="text"
-      value={inputMessage}
-      onChange={handleTyping}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault();
-          handleSend(e);
-        }
-      }}
-      placeholder={connected ? "Message..." : "Reconnecting..."}
-      disabled={!connected}
-      autoComplete="off"
-    />
+  <input
+  className="chat-input"
+  type="text"
+  value={inputMessage}
+  onChange={handleTyping}
+  placeholder={connected ? "Message..." : "Reconnecting..."}
+  autoComplete="on"
+  enterKeyHint="send"
+/>
     <button
       onClick={handleSend}
       disabled={!connected || !inputMessage.trim()}

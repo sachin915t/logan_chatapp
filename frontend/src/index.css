@@ -42,3 +42,6 @@
   pointer-events: none;
   animation: toastIn 0.25s ease both;
 }
+.chat-input {
+  -webkit-text-security: none;
+}
