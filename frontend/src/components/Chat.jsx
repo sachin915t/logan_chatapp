@@ -325,12 +325,15 @@ const Chat = ({ username, roomId, avatar, onLogout }) => {
       {/* Input */}
       <div className="px-4 py-3 border-t border-[#1a1a1a] bg-[#0d0d0d] shrink-0">
         <form onSubmit={handleSend} className="flex gap-2.5 items-center">
-          <input className="chat-input" type="text" name="chat-message"
-            inputMode="text" value={inputMessage} onChange={handleTyping}
-            placeholder={connected ? "Message..." : "Reconnecting..."}
-            disabled={!connected} autoComplete="off" autoCorrect="off"
-            autoCapitalize="off" spellCheck="false" data-form-type="other"
-          />
+          <input
+  className="chat-input"
+  type="text"
+  value={inputMessage}
+  onChange={handleTyping}
+  placeholder={connected ? "Message..." : "Reconnecting..."}
+  disabled={!connected}
+  autoComplete="off"
+/>
           <button type="submit" disabled={!connected || !inputMessage.trim()}
             className="w-11 h-11 bg-white text-black rounded-xl flex items-center justify-center shrink-0 transition-all hover:opacity-85 hover:scale-105 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed border-none cursor-pointer">
             <Send size={16} />
