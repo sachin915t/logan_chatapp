@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 
 const RECONNECT_DELAY = 2000;
 const MAX_RECONNECT_ATTEMPTS = 5;
+const EXPIRY_MINUTES = 10;
+const HISTORY_KEY = (room) => `chat_history_${room}`;
 
 export const useWebSocket = (url) => {
   const [connected, setConnected] = useState(false);
@@ -11,6 +13,54 @@ export const useWebSocket = (url) => {
   const reconnectTimer = useRef(null);
   const shouldReconnect = useRef(true);
   const seenIds = useRef(new Set());
+  const historyLoaded = useRef(false);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    if (historyLoaded.current) return;
+    historyLoaded.current = true;
+
+    const parts = url.split("/ws/")[1]?.split("/");
+    const room = parts?.[0];
+    if (!room) return;
+
+    try {
+      const saved = localStorage.getItem(HISTORY_KEY(room));
+      if (saved) {
+        const { messages: savedMsgs, savedAt } = JSON.parse(saved);
+        const ageMinutes = (Date.now() - savedAt) / 1000 / 60;
+
+        if (ageMinutes < EXPIRY_MINUTES) {
+          savedMsgs.forEach(m => {
+            const id = `${m.sender}-${m.timestamp}-${m.content}`;
+            seenIds.current.add(id);
+          });
+          setMessages(savedMsgs);
+        } else {
+          localStorage.removeItem(HISTORY_KEY(room));
+        }
+      }
+    } catch {
+      // corrupt localStorage data — ignore
+    }
+  }, [url]);
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    const parts = url.split("/ws/")[1]?.split("/");
+    const room = parts?.[0];
+    if (!room) return;
+
+    const onlyMessages = messages.filter(m => m.type === "message");
+    if (!onlyMessages.length) return;
+
+    try {
+      localStorage.setItem(HISTORY_KEY(room), JSON.stringify({
+        messages: onlyMessages.slice(-100), // keep last 100
+        savedAt: Date.now(),
+      }));
+    } catch {}
+  }, [messages, url]);
 
   const connect = useCallback(() => {
     if (!shouldReconnect.current) return;
@@ -44,14 +94,12 @@ export const useWebSocket = (url) => {
       try {
         const data = JSON.parse(event.data);
 
-        // Unique ID: prefer server-provided id, else derive from content
         const msgId =
           data.id ?? `${data.sender}-${data.timestamp}-${data.content}`;
 
         if (seenIds.current.has(msgId)) return;
         seenIds.current.add(msgId);
 
-        // Prune seen IDs to avoid unbounded memory growth
         if (seenIds.current.size > 500) {
           const oldest = [...seenIds.current].slice(0, 100);
           oldest.forEach((id) => seenIds.current.delete(id));

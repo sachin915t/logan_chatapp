@@ -116,6 +116,29 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
             "count": manager.get_room_count(room_id)
         }, room_id)
 
+@app.get("/rooms/{room_id}/messages")
+async def get_messages(room_id: str):
+    db = SessionLocal()
+    try:
+        messages = db.query(Message)\
+            .filter(Message.room_id == room_id)\
+            .order_by(Message.id.asc())\
+            .limit(50)\
+            .all()
+        return {
+            "messages": [
+                {
+                    "type": "message",
+                    "content": m.content,
+                    "sender": m.sender,
+                    "timestamp": m.timestamp.isoformat(),
+                }
+                for m in messages
+            ]
+        }
+    finally:
+        db.close()
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     asyncio.create_task(keep_alive())
@@ -132,7 +155,7 @@ async def keep_alive():
         except:
             pass
         await asyncio.sleep(840)  # ping every 14 minutes
-        
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
