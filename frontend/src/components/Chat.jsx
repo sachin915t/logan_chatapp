@@ -173,18 +173,18 @@ const Chat = ({ username, roomId, avatar, onLogout }) => {
     return () => clearTimeout(typingTimeout.current);
   }, [messages, username]);
 
-  const handleSend = (e) => {
-    e.preventDefault();
-    if (!inputMessage.trim() || !connected) return;
-    sendMessage({
-      type: "message",
-      content: inputMessage.trim(),
-      sender: username,
-      avatar,
-      timestamp: new Date().toISOString(),
-    });
-    setInputMessage("");
-  };
+ const handleSend = (e) => {
+  e?.preventDefault();
+  if (!inputMessage.trim() || !connected) return;
+  sendMessage({
+    type: "message",
+    content: inputMessage.trim(),
+    sender: username,
+    avatar,
+    timestamp: new Date().toISOString(),
+  });
+  setInputMessage("");
+};
 
   const handleTyping = (e) => {
     setInputMessage(e.target.value);
@@ -323,23 +323,33 @@ const Chat = ({ username, roomId, avatar, onLogout }) => {
       </div>
 
       {/* Input */}
-      <div className="px-4 py-3 border-t border-[#1a1a1a] bg-[#0d0d0d] shrink-0">
-        <form onSubmit={handleSend} className="flex gap-2.5 items-center">
-          <input
-  className="chat-input"
-  type="text"
-  value={inputMessage}
-  onChange={handleTyping}
-  placeholder={connected ? "Message..." : "Reconnecting..."}
-  disabled={!connected}
-  autoComplete="off"
-/>
-          <button type="submit" disabled={!connected || !inputMessage.trim()}
-            className="w-11 h-11 bg-white text-black rounded-xl flex items-center justify-center shrink-0 transition-all hover:opacity-85 hover:scale-105 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed border-none cursor-pointer">
-            <Send size={16} />
-          </button>
-        </form>
-      </div>
+      <div className="px-4 py-3 border-t border-[#1a1a1a] bg-[#0d0d0d] shrink-0"
+  style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
+  <div className="flex gap-2.5 items-center">
+    <input
+      className="chat-input"
+      type="text"
+      value={inputMessage}
+      onChange={handleTyping}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          handleSend(e);
+        }
+      }}
+      placeholder={connected ? "Message..." : "Reconnecting..."}
+      disabled={!connected}
+      autoComplete="off"
+    />
+    <button
+      onClick={handleSend}
+      disabled={!connected || !inputMessage.trim()}
+      className="w-11 h-11 bg-white text-black rounded-xl flex items-center justify-center shrink-0 transition-all hover:opacity-85 hover:scale-105 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed border-none cursor-pointer"
+    >
+      <Send size={16} />
+    </button>
+  </div>
+</div>
       {toast && <div className="toast">{toast}</div>}
     </div>
   );
