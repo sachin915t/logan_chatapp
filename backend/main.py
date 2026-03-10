@@ -4,6 +4,8 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 import json
 import re
+import httpx
+import asyncio
 
 from manager import manager
 from models import Message, SessionLocal
@@ -114,7 +116,23 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
             "count": manager.get_room_count(room_id)
         }, room_id)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    asyncio.create_task(keep_alive())
+    print("Starting up...")
+    yield
+    print("Shutting down...")
 
+async def keep_alive():
+    await asyncio.sleep(60)  # wait for server to start
+    while True:
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.get("https://your-chat-app.onrender.com/health")
+        except:
+            pass
+        await asyncio.sleep(840)  # ping every 14 minutes
+        
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
