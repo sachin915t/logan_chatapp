@@ -22,10 +22,20 @@ export default function Login({ onLogin }) {
   const [avatar, setAvatar] = useState(avatars[0]);
   const [mounted, setMounted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [rooms, setRooms] = useState([]);
+  const [showRooms, setShowRooms] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 40);
     return () => clearTimeout(t);
+  }, []);
+
+  // Fetch active rooms
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL}/rooms`)
+      .then(r => r.json())
+      .then(data => setRooms(data.rooms))
+      .catch(() => {});
   }, []);
 
   const handleSubmit = (e) => {
@@ -52,9 +62,7 @@ export default function Login({ onLogin }) {
           from { opacity: 0; transform: translateY(16px); }
           to   { opacity: 1; transform: translateY(0); }
         }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
         .av {
           border-radius: 50%;
@@ -113,6 +121,18 @@ export default function Login({ onLogin }) {
           border-radius: 50%;
           animation: spin 0.7s linear infinite;
         }
+
+        .room-item {
+          padding: 10px 14px;
+          cursor: pointer;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 14px;
+          color: #fff;
+          transition: background 0.15s;
+        }
+        .room-item:hover { background: #252525; }
       `}</style>
 
       <div style={{
@@ -175,15 +195,46 @@ export default function Login({ onLogin }) {
             autoCapitalize="off"
             required
           />
-          <input
-            className="inp"
-            type="text"
-            placeholder="Room ID"
-            value={roomId}
-            onChange={(e) => setRoomId(e.target.value)}
-            autoComplete="off"
-            autoCapitalize="off"
-          />
+
+          {/* Room input with dropdown */}
+          <div style={{ position: "relative" }}>
+            <input
+              className="inp"
+              type="text"
+              placeholder="Room ID"
+              value={roomId}
+              onChange={(e) => setRoomId(e.target.value)}
+              onFocus={() => setShowRooms(true)}
+              onBlur={() => setTimeout(() => setShowRooms(false), 150)}
+              autoComplete="off"
+              autoCapitalize="off"
+            />
+
+            {showRooms && rooms.length > 0 && (
+              <div style={{
+                position: "absolute", top: "110%", left: 0, right: 0,
+                background: "#1a1a1a",
+                border: "1.5px solid #2a2a2a",
+                borderRadius: 12,
+                overflow: "hidden",
+                zIndex: 10,
+              }}>
+                {rooms.map((r) => (
+                  <div
+                    key={r.room_id}
+                    className="room-item"
+                    onMouseDown={() => setRoomId(r.room_id)}
+                  >
+                    <span>#{r.room_id}</span>
+                    <span style={{ color: "#4ade80", fontSize: 12 }}>
+                      {r.count} online
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <button
             type="submit"
             className="btn"
