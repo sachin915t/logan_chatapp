@@ -6,6 +6,7 @@ import json
 import re
 import httpx
 import asyncio
+from bs4 import BeautifulSoup
 
 from manager import manager
 from models import Message, SessionLocal
@@ -138,6 +139,21 @@ async def get_messages(room_id: str):
         }
     finally:
         db.close()
+    
+@app.get("/preview")
+async def link_preview(url: str):
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            res = await client.get(url, follow_redirects=True)
+            soup = BeautifulSoup(res.text, "html.parser")
+            return {
+                "title": soup.find("meta", property="og:title") and soup.find("meta", property="og:title")["content"],
+                "description": soup.find("meta", property="og:description") and soup.find("meta", property="og:description")["content"],
+                "image": soup.find("meta", property="og:image") and soup.find("meta", property="og:image")["content"],
+                "url": url,
+            }
+    except:
+        return {"url": url}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

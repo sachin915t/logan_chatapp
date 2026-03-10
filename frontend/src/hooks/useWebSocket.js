@@ -15,7 +15,15 @@ export const useWebSocket = (url) => {
   const seenIds = useRef(new Set());
   const historyLoaded = useRef(false);
 
-  // Load from localStorage on mount
+  // Reset everything when URL (room) changes
+  useEffect(() => {
+    setMessages([]);
+    setConnected(false);
+    seenIds.current.clear();
+    historyLoaded.current = false;
+  }, [url]);
+
+  // Load from localStorage on mount / room change
   useEffect(() => {
     if (historyLoaded.current) return;
     historyLoaded.current = true;
@@ -56,7 +64,7 @@ export const useWebSocket = (url) => {
 
     try {
       localStorage.setItem(HISTORY_KEY(room), JSON.stringify({
-        messages: onlyMessages.slice(-100), // keep last 100
+        messages: onlyMessages.slice(-100),
         savedAt: Date.now(),
       }));
     } catch {}
@@ -64,6 +72,12 @@ export const useWebSocket = (url) => {
 
   const connect = useCallback(() => {
     if (!shouldReconnect.current) return;
+
+    // Close existing connection before opening new one
+    if (ws.current && ws.current.readyState !== WebSocket.CLOSED) {
+      ws.current.onclose = null; // prevent reconnect loop
+      ws.current.close();
+    }
 
     const websocket = new WebSocket(url);
     ws.current = websocket;
@@ -114,6 +128,8 @@ export const useWebSocket = (url) => {
 
   useEffect(() => {
     shouldReconnect.current = true;
+    reconnectAttempts.current = 0;
+    clearTimeout(reconnectTimer.current);
     connect();
 
     return () => {
