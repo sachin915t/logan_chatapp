@@ -1,81 +1,53 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
-const RECONNECT_DELAY = 2000;
-const MAX_RECONNECT_ATTEMPTS = 5;
-const EXPIRY_MINUTES = 10;
-const HISTORY_KEY = (room) => `chat_history_${room}`;
+const RECONNECT_DELAY = 1000; // Faster reconnect
+const MAX_RECONNECT_ATTEMPTS = 20;
 
-export const useWebSocket = (url) => {
+export const useWebSocket = (url, roomId) => {
   const [connected, setConnected] = useState(false);
   const [messages, setMessages] = useState([]);
   const ws = useRef(null);
   const reconnectAttempts = useRef(0);
   const reconnectTimer = useRef(null);
   const shouldReconnect = useRef(true);
-  const seenIds = useRef(new Set());
-  const historyLoaded = useRef(false);
+  const msgCounter = useRef(0);
+  const receivedIds = useRef(new Set());
+  const pingTimeout = useRef(null);
+  const isBackground = useRef(false);
 
-  // Reset everything when URL (room) changes
+  // Reset on room change
   useEffect(() => {
     setMessages([]);
-    setConnected(false);
-    seenIds.current.clear();
-    historyLoaded.current = false;
-  }, [url]);
+    receivedIds.current.clear();
+    msgCounter.current = 0;
+  }, [roomId]);
 
-  // Load from localStorage on mount / room change
+  // Handle visibility change (tab switching, multitasking)
   useEffect(() => {
-    if (historyLoaded.current) return;
-    historyLoaded.current = true;
-
-    const parts = url.split("/ws/")[1]?.split("/");
-    const room = parts?.[0];
-    if (!room) return;
-
-    try {
-      const saved = localStorage.getItem(HISTORY_KEY(room));
-      if (saved) {
-        const { messages: savedMsgs, savedAt } = JSON.parse(saved);
-        const ageMinutes = (Date.now() - savedAt) / 1000 / 60;
-
-        if (ageMinutes < EXPIRY_MINUTES) {
-          savedMsgs.forEach(m => {
-            const id = `${m.sender}-${m.timestamp}-${m.content}`;
-            seenIds.current.add(id);
-          });
-          setMessages(savedMsgs);
-        } else {
-          localStorage.removeItem(HISTORY_KEY(room));
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        isBackground.current = true;
+      } else {
+        isBackground.current = false;
+        // Reconnect immediately when coming back
+        if (!connected && shouldReconnect.current) {
+          clearTimeout(reconnectTimer.current);
+          reconnectAttempts.current = 0;
+          connect();
         }
       }
-    } catch {
-      // corrupt localStorage data — ignore
-    }
-  }, [url]);
+    };
 
-  // Save messages to localStorage whenever they change
-  useEffect(() => {
-    const parts = url.split("/ws/")[1]?.split("/");
-    const room = parts?.[0];
-    if (!room) return;
-
-    const onlyMessages = messages.filter(m => m.type === "message");
-    if (!onlyMessages.length) return;
-
-    try {
-      localStorage.setItem(HISTORY_KEY(room), JSON.stringify({
-        messages: onlyMessages.slice(-100),
-        savedAt: Date.now(),
-      }));
-    } catch {}
-  }, [messages, url]);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [connected]);
 
   const connect = useCallback(() => {
     if (!shouldReconnect.current) return;
 
-    // Close existing connection before opening new one
-    if (ws.current && ws.current.readyState !== WebSocket.CLOSED) {
-      ws.current.onclose = null; // prevent reconnect loop
+    // Clean up old connection
+    if (ws.current) {
+      ws.current.onclose = null;
       ws.current.close();
     }
 
@@ -89,13 +61,11 @@ export const useWebSocket = (url) => {
 
     websocket.onclose = () => {
       setConnected(false);
-
-      if (
-        shouldReconnect.current &&
-        reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS
-      ) {
+      
+      if (shouldReconnect.current && reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
         reconnectAttempts.current += 1;
-        const delay = RECONNECT_DELAY * reconnectAttempts.current;
+        // Exponential backoff with max 5 seconds
+        const delay = Math.min(RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts.current), 5000);
         reconnectTimer.current = setTimeout(connect, delay);
       }
     };
@@ -107,21 +77,31 @@ export const useWebSocket = (url) => {
     websocket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-
-        const msgId =
-          data.id ?? `${data.sender}-${data.timestamp}-${data.content}`;
-
-        if (seenIds.current.has(msgId)) return;
-        seenIds.current.add(msgId);
-
-        if (seenIds.current.size > 500) {
-          const oldest = [...seenIds.current].slice(0, 100);
-          oldest.forEach((id) => seenIds.current.delete(id));
+        
+        // Handle ping/pong
+        if (data.type === 'ping') {
+          websocket.send(JSON.stringify({ type: 'pong' }));
+          return;
         }
+        if (data.type === 'pong') return;
+
+        // Create unique ID for deduplication
+        const msgId = data.timestamp && data.sender 
+          ? `${data.sender}-${data.timestamp}-${data.content?.slice(0, 30)}`
+          : `msg-${++msgCounter.current}`;
+
+        // Skip if already seen
+        if (receivedIds.current.has(msgId)) {
+          console.log('Duplicate message skipped:', msgId);
+          return;
+        }
+        
+        receivedIds.current.add(msgId);
+        data._localId = msgCounter.current++;
 
         setMessages((prev) => [...prev, data]);
       } catch (err) {
-        console.error("Failed to parse WebSocket message:", err);
+        console.error("Failed to parse message:", err);
       }
     };
   }, [url]);
@@ -129,12 +109,12 @@ export const useWebSocket = (url) => {
   useEffect(() => {
     shouldReconnect.current = true;
     reconnectAttempts.current = 0;
-    clearTimeout(reconnectTimer.current);
     connect();
 
     return () => {
       shouldReconnect.current = false;
       clearTimeout(reconnectTimer.current);
+      clearTimeout(pingTimeout.current);
       ws.current?.close();
     };
   }, [connect]);
@@ -142,12 +122,15 @@ export const useWebSocket = (url) => {
   const sendMessage = useCallback((message) => {
     if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify(message));
+    } else {
+      console.warn("WebSocket not connected, message not sent");
     }
   }, []);
 
   const clearMessages = useCallback(() => {
     setMessages([]);
-    seenIds.current.clear();
+    receivedIds.current.clear();
+    msgCounter.current = 0;
   }, []);
 
   return { connected, messages, sendMessage, clearMessages };

@@ -4,7 +4,6 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql import func
 import os
 
-# Use SQLite instead of PostgreSQL for local development
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./chat.db")
 
 engine = create_engine(
@@ -21,6 +20,7 @@ class Message(Base):
     room_id = Column(String, index=True)
     sender = Column(String)
     content = Column(Text)
+    avatar = Column(String, nullable=True)  # Optional: store avatar URL
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
 
 # Create tables
