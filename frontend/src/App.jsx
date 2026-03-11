@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Login from "./components/Login";
 import Chat from "./components/Chat";
 
@@ -10,7 +10,15 @@ function App() {
   useEffect(() => {
     try {
       const savedUser = sessionStorage.getItem("chatUser");
-      if (savedUser) setUser(JSON.parse(savedUser));
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        // Validate saved data has required fields before restoring
+        if (parsed?.username && parsed?.roomId && parsed?.avatar) {
+          setUser(parsed);
+        } else {
+          sessionStorage.removeItem("chatUser");
+        }
+      }
     } catch {
       sessionStorage.removeItem("chatUser");
     } finally {
@@ -18,16 +26,21 @@ function App() {
     }
   }, []);
 
-  const handleLogin = (username, roomId, avatar) => {
+  const handleLogin = useCallback((username, roomId, avatar) => {
     const userData = { username, roomId, avatar };
-    sessionStorage.setItem("chatUser", JSON.stringify(userData));
+    try {
+      sessionStorage.setItem("chatUser", JSON.stringify(userData));
+    } catch {
+      // sessionStorage might be blocked (private mode, storage full, etc.)
+      // Still allow login, just won't persist
+    }
     setUser(userData);
-  };
+  }, []);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     sessionStorage.removeItem("chatUser");
     setUser(null);
-  };
+  }, []);
 
   // Avoid flash of Login screen before session is checked
   if (!hydrated) return null;
