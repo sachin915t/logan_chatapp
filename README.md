@@ -184,4 +184,4 @@ Built by **Sachin** — open to contributions, feedback, and ideas.
 ---
 ## 📄 License
 
-MIT License — see [LICENSE](./LICENSE) for details.
+MIT License — see [LICENSE](./LICENSE.md) for details.
