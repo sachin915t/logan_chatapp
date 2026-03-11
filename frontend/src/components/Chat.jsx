@@ -425,7 +425,7 @@ const Chat = ({ username, roomId, avatar, onLogout }) => {
         style={{ paddingTop: "max(12px, env(safe-area-inset-top))", paddingBottom: 12 }}>
         <div className="flex items-center gap-2">
           <Hash size={15} className="text-zinc-600" />
-          <span className="font-bold text-[15px]" style={{ fontFamily: "'Syne', sans-serif" }}>{roomId}</span> <span className="text-zinc-600" style={{ fontFamily: "'Syne', sans-serif" }}>Room ID</span>
+          <span className="font-bold text-[15px]" style={{ fontFamily: "'Syne', sans-serif" }}>{roomId}</span>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
