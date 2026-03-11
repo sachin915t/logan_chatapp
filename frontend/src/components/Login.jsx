@@ -30,7 +30,8 @@ export default function Login({ onLogin }) {
   const [submitting, setSubmitting] = useState(false);
   const [rooms, setRooms] = useState([]);
   const [showRooms, setShowRooms] = useState(false);
-
+  const [roomWarning, setRoomWarning] = useState("");
+  
   useEffect(() => {
   document.title = "Logan Chat — Join a Room";
   document.querySelector('meta[name="description"]')
@@ -202,32 +203,63 @@ export default function Login({ onLogin }) {
           <input type="password" style={{ display: "none" }} />
 
           <input
-            className="inp"
-            type="text"
-            name="chat-username"
-            placeholder="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            autoComplete="off" autoCorrect="off"
-            autoCapitalize="off" spellCheck="false"
-            inputMode="text" data-form-type="other"
-          />
+  className="inp"
+  type="text"
+  name="chat-username"
+  placeholder="zoro"
+  value={username}
+  maxLength={6}
+  pattern="^[^\.]{1,6}$"
+  onChange={(e) => {
+    const value = e.target.value.replace(/\./g, ""); // remove dots
+    setUsername(value.slice(0, 6)); // limit to 6 characters
+  }}
+  autoComplete="off"
+  autoCorrect="off"
+  autoCapitalize="off"
+  spellCheck="false"
+  inputMode="text"
+  data-form-type="other"
+/>
 
           {/* Room input + dropdown */}
           <div className="relative">
-            <input
-              className="inp"
-              type="text"
-              name="chat-room"
-              placeholder="Room ID"
-              value={roomId}
-              onChange={(e) => setRoomId(e.target.value)}
-              onFocus={() => setShowRooms(true)}
-              onBlur={() => setTimeout(() => setShowRooms(false), 150)}
-              autoComplete="off" autoCorrect="off"
-              autoCapitalize="off" spellCheck="false"
-              inputMode="text" data-form-type="other"
-            />
+          <input
+  className="inp"
+  type="text"
+  name="chat-room"
+  placeholder="Room ID"
+  value={roomId}
+  onChange={(e) => {
+    const raw = e.target.value;
+
+    // check if user tried invalid characters
+    if (/[ .]/.test(raw)) {
+      setRoomWarning("Spaces and dots are not allowed in Room ID");
+    } else {
+      setRoomWarning("");
+    }
+
+    // clean the value
+    const cleaned = raw.replace(/[ .]/g, "").slice(0, 7);
+
+    setRoomId(cleaned);
+  }}
+  onFocus={() => setShowRooms(true)}
+  onBlur={() => setTimeout(() => setShowRooms(false), 150)}
+  autoComplete="off"
+  autoCorrect="off"
+  autoCapitalize="off"
+  spellCheck="false"
+  inputMode="text"
+  data-form-type="other"
+/>
+
+{roomWarning && (
+  <p style={{ color: "red", fontSize: "12px" }}>
+    {roomWarning}
+  </p>
+)}
             {showRooms && rooms.length > 0 && (
               <div className="absolute top-[110%] left-0 right-0 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl overflow-hidden z-10">
                 {rooms.map((r) => (
