@@ -18,7 +18,7 @@ const avatars = [
   'https://i.pinimg.com/236x/e3/1a/e1/e31ae12d1518623de4aaf1c0e19f2661.jpg',
   'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQThc_JxYDNL_IKil3VdPn_eBLESOwpCZrZ2A&s',
   'https://preview.redd.it/would-you-consider-kumas-backstory-the-saddest-v0-2eqdy5pcyr1f1.jpeg?width=640&crop=smart&auto=webp&s=d7c8fab22e5ec2d41dd3f5f4d75c799a9f711260',
-  'https://pbs.twimg.com/profile_images/1990509607848947713/nwSvHbPD.jpg',
+  'https://i.pinimg.com/736x/26/90/aa/2690aa1fff3b30eb656ec1b1e0817686.jpg',
   'https://i.pinimg.com/736x/9d/41/32/9d41323ed75a9c7a74bedb7202f07d93.jpg'
 ];
 // url issue 
