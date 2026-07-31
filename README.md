@@ -20,7 +20,7 @@ A minimal, open-source real-time chat application built with **FastAPI** + **Web
 - 💾 **Message persistence** — chat history saved to SQLite via SQLAlchemy
 - 🔄 **Auto-reconnect** — client reconnects automatically with exponential backoff
 - 📱 **Mobile optimized** — works on all screen sizes
-
+- 😊 **just for fun**
 ---
 
 ## 🗂 Project Structure
