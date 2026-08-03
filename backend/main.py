@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 from manager import manager
 from models import Message, SessionLocal
 
-RENDER_URL = "https://your-chat-app.onrender.com"
+RENDER_URL = "https://your-chat-app.onrender.com" #only for testing bec it is easy for me
 
 async def keep_alive():
     await asyncio.sleep(60)
