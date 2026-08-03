@@ -85,6 +85,21 @@ export const useWebSocket = (url, roomId) => {
         }
         if (data.type === 'pong') return;
 
+        if (data.type === 'delete') {
+          setMessages((prev) =>
+            prev.filter((m) => {
+              if (m.type !== 'message') return true;
+              if (data.id != null && m.id != null) return m.id !== data.id;
+              return !(
+                m.sender === data.sender &&
+                m.timestamp === data.timestamp &&
+                m.content === data.content
+              );
+            })
+          );
+          return;
+        }
+
         // Create unique ID for deduplication
         const msgId = data.timestamp && data.sender 
           ? `${data.sender}-${data.timestamp}-${data.content?.slice(0, 30)}`

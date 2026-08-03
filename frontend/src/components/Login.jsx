@@ -24,13 +24,13 @@ const avatars = [
 // url issue 
 export default function Login({ onLogin }) {
   const [username, setUsername] = useState("");
-  const [roomId, setRoomId] = useState("Elbaf");
+  // const [roomId, setRoomId] = useState("");
   const [avatar, setAvatar] = useState(avatars[0]);
   const [mounted, setMounted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [rooms, setRooms] = useState([]);
-  const [showRooms, setShowRooms] = useState(false);
-  const [roomWarning, setRoomWarning] = useState("");
+  // const [rooms, setRooms] = useState([]);
+  // const [showRooms, setShowRooms] = useState(false);
+  // const [roomWarning, setRoomWarning] = useState("");
   
   useEffect(() => {
   document.title = "Logan Chat — Join a Room";
@@ -43,19 +43,20 @@ export default function Login({ onLogin }) {
     return () => clearTimeout(t);
   }, []);
 
-  useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/rooms`)
-      .then(r => r.json())
-      .then(data => setRooms(data.rooms))
-      .catch(() => {});
-  }, []);
+  // useEffect(() => {
+  //   fetch(`${import.meta.env.VITE_API_URL}/rooms`)
+  //     .then(r => r.json())
+  //     .then(data => setRooms(data.rooms))
+  //     .catch(() => {});
+  // }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const trimmed = username.trim();
     if (!trimmed || submitting) return;
     setSubmitting(true);
-    setTimeout(() => onLogin(trimmed, roomId.trim() || "general", avatar), 500);
+    // setTimeout(() => onLogin(trimmed, roomId.trim() || "general", avatar), 500);
+    setTimeout(() => onLogin(trimmed, avatar), 500);
   };
 
   return (
@@ -150,7 +151,9 @@ export default function Login({ onLogin }) {
   Logan Chat App
 </h1>
 <p className="text-sm text-[#555]">
-  Pick your vibe, join your room
+Set Sail 🌊
+
+Choose a room. Find your crew. Chat anonymously.
 </p>
 
 {/* GitHub repo link */}
@@ -223,7 +226,7 @@ export default function Login({ onLogin }) {
 />
 
           {/* Room input + dropdown */}
-          <div className="relative">
+          {/* <div className="relative">
           <input
   className="inp"
   type="text"
@@ -270,7 +273,7 @@ export default function Login({ onLogin }) {
                 ))}
               </div>
             )}
-          </div>
+          </div> */}
 
           <button
             type="submit"
@@ -279,7 +282,7 @@ export default function Login({ onLogin }) {
           >
             {submitting
   ? <div className="spinner" />
-  : <><span>Enter Room</span><ArrowRight size={15} /></>
+  : <><span>Continue</span><ArrowRight size={15} /></>
 }
           </button>
         </form>

@@ -1,59 +1,128 @@
 import { useState, useEffect, useCallback } from "react";
+import { Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
 import Login from "./components/Login";
 import Chat from "./components/Chat";
+import DiscoverRooms from "./components/DiscoverRooms";
 
-function App() {
-  const [user, setUser] = useState(null);
-  const [hydrated, setHydrated] = useState(false);
+function LoginRoute({ user, onLogin }) {
+  if (user) return <Navigate to="/discover" replace />;
+  return <Login onLogin={onLogin} />;
+}
 
-  // Restore session on mount
-  useEffect(() => {
-    try {
-      const savedUser = sessionStorage.getItem("chatUser");
-      if (savedUser) {
-        const parsed = JSON.parse(savedUser);
-        // Validate saved data has required fields before restoring
-        if (parsed?.username && parsed?.roomId && parsed?.avatar) {
-          setUser(parsed);
-        } else {
-          sessionStorage.removeItem("chatUser");
-        }
-      }
-    } catch {
-      sessionStorage.removeItem("chatUser");
-    } finally {
-      setHydrated(true);
-    }
-  }, []);
+function DiscoverRoute({ user, rooms, onJoin, onBack }) {
+  if (!user) return <Navigate to="/" replace />;
+  return <DiscoverRooms rooms={rooms} onJoin={onJoin} onBack={onBack} />;
+}
 
-  const handleLogin = useCallback((username, roomId, avatar) => {
-    const userData = { username, roomId, avatar };
-    try {
-      sessionStorage.setItem("chatUser", JSON.stringify(userData));
-    } catch {
-      // sessionStorage might be blocked (private mode, storage full, etc.)
-      // Still allow login, just won't persist
-    }
-    setUser(userData);
-  }, []);
+function RoomRoute({ user, onLogout }) {
+  const { roomId: rawRoomId } = useParams();
+  const roomId = decodeURIComponent(rawRoomId ?? "");
 
-  const handleLogout = useCallback(() => {
-    sessionStorage.removeItem("chatUser");
-    setUser(null);
-  }, []);
-
-  // Avoid flash of Login screen before session is checked
-  if (!hydrated) return null;
-
-  if (!user) return <Login onLogin={handleLogin} />;
+  if (!user) return <Navigate to="/" replace />;
+  if (!roomId) return <Navigate to="/discover" replace />;
 
   return (
     <Chat
       username={user.username}
-      roomId={user.roomId}
+      roomId={roomId}
       avatar={user.avatar}
-      onLogout={handleLogout}
+      onLogout={onLogout}
     />
+  );
+}
+
+function App() {
+  const [user, setUser] = useState(null);
+  const [rooms, setRooms] = useState([]);
+  const [hydrated, setHydrated] = useState(false);
+  const navigate = useNavigate();
+
+  // Restore session (username/avatar only — the room comes from the URL)
+  useEffect(() => {
+    async function restore() {
+      try {
+        const saved = sessionStorage.getItem("chatUser");
+
+        if (saved) {
+          const parsed = JSON.parse(saved);
+
+          if (parsed?.username && parsed?.avatar) {
+            setUser(parsed);
+
+            try {
+              const res = await fetch(`${import.meta.env.VITE_API_URL}/discover`);
+              const data = await res.json();
+              setRooms(data.trending || []);
+            } catch (err) {
+              console.error(err);
+            }
+          }
+        }
+      } catch {
+        sessionStorage.removeItem("chatUser");
+      } finally {
+        setHydrated(true);
+      }
+    }
+
+    restore();
+  }, []);
+
+  const handleLogin = useCallback(
+    async (username, avatar) => {
+      const userData = { username, avatar };
+      sessionStorage.setItem("chatUser", JSON.stringify(userData));
+      setUser(userData);
+
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/discover`);
+        const data = await res.json();
+        setRooms(data.trending || []);
+      } catch (err) {
+        console.error(err);
+      }
+
+      navigate("/discover");
+    },
+    [navigate]
+  );
+
+  const handleJoin = useCallback(
+    (roomId) => {
+      navigate(`/room/${encodeURIComponent(roomId)}`);
+    },
+    [navigate]
+  );
+
+  const handleLogout = useCallback(() => {
+    sessionStorage.removeItem("chatUser");
+    setUser(null);
+    setRooms([]);
+    navigate("/");
+  }, [navigate]);
+
+  if (!hydrated) return null;
+
+  return (
+    <Routes>
+      <Route path="/" element={<LoginRoute user={user} onLogin={handleLogin} />} />
+      <Route
+        path="/discover"
+        element={
+          <DiscoverRoute
+            user={user}
+            rooms={rooms}
+            onJoin={handleJoin}
+            onBack={handleLogout}
+          />
+        }
+      />
+      <Route
+        path="/room/:roomId"
+        element={<RoomRoute user={user} onLogout={handleLogout} />}
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
 

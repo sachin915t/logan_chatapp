@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Send, Wifi, WifiOff, LogOut, Hash, ExternalLink, Smile } from "lucide-react";
-import { format } from "date-fns";
+import { Send, Wifi, WifiOff, LogOut, Hash, ExternalLink, Smile, Trash2 } from "lucide-react";
 import { useWebSocket } from "../hooks/useWebSocket";
+import {
+  formatLocalTime,
+  formatDayLabel,
+  getLocalDayKey,
+  chatSpansMultipleDays,
+} from "../utils/time";
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
 
@@ -79,24 +84,6 @@ function TypingDots() {
   );
 }
 
-// Force treat timestamp as UTC then display in user's local time with AM/PM
-function formatLocalTime(timestamp) {
-  if (!timestamp) return "";
-  try {
-    let ts = String(timestamp).trim().replace(" ", "T");
-    if (!ts.endsWith("Z") && !/[+-]\d{2}:?\d{2}$/.test(ts)) ts += "Z";
-    const date = new Date(ts);
-    if (isNaN(date.getTime())) return "";
-    return new Intl.DateTimeFormat(undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    }).format(date);
-  } catch {
-    return "";
-  }
-}
-
 const Chat = ({ username, roomId, avatar, onLogout }) => {
   const [inputMessage, setInputMessage] = useState("");
   const [typingUsers, setTypingUsers] = useState(new Set());
@@ -106,6 +93,7 @@ const Chat = ({ username, roomId, avatar, onLogout }) => {
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [selectedMsgKey, setSelectedMsgKey] = useState(null);
 
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -172,11 +160,14 @@ const Chat = ({ username, roomId, avatar, onLogout }) => {
     const handleClickOutside = (e) => {
       if (emojiPickerRef.current?.contains(e.target)) return;
       if (e.target.closest('.emoji-toggle-btn')) return;
+      if (e.target.closest('.msg-delete-btn')) return;
+      if (e.target.closest('.bubble-own')) return;
       if (showEmojiPicker) setShowEmojiPicker(false);
+      if (selectedMsgKey) setSelectedMsgKey(null);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showEmojiPicker]);
+  }, [showEmojiPicker, selectedMsgKey]);
 
   useEffect(() => {
     if (!window.visualViewport) return;
@@ -250,6 +241,18 @@ const Chat = ({ username, roomId, avatar, onLogout }) => {
     }
   }, [sendMessage, username, avatar]);
 
+  const handleDeleteMessage = useCallback((msg) => {
+    sendMessage({
+      type: "delete",
+      id: msg.id,
+      timestamp: msg.timestamp,
+      content: msg.content,
+      sender: username,
+    });
+    setSelectedMsgKey(null);
+    showToast("Message deleted", "success");
+  }, [sendMessage, username, showToast]);
+
   // Keep server arrival order — do NOT sort by timestamp.
   // Sorting causes user messages (timestamped locally) to appear above
   // server-generated join/leave system messages that arrived just after.
@@ -261,6 +264,10 @@ const Chat = ({ username, roomId, avatar, onLogout }) => {
   // causing them to appear in the wrong position if we sort.
   // The server already sends messages in correct chronological order.
   const sortedMessages = useMemo(() => visibleMessages, [visibleMessages]);
+  const showDaySeparators = useMemo(
+    () => chatSpansMultipleDays(sortedMessages),
+    [sortedMessages]
+  );
 
   useEffect(() => {
     if (messages.length > 0) messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
@@ -354,6 +361,33 @@ const Chat = ({ username, roomId, avatar, onLogout }) => {
   clear: both;
 }
         .msg-row { overflow: visible !important; padding-bottom: 2px; }
+
+        .date-sep {
+          display: flex;
+          justify-content: center;
+          padding: 12px 0 8px;
+          pointer-events: none;
+        }
+        .date-sep span {
+          background: rgba(39, 39, 42, 0.9);
+          color: #a1a1aa;
+          font-size: 11px;
+          font-weight: 500;
+          padding: 4px 12px;
+          border-radius: 8px;
+          letter-spacing: 0.02em;
+        }
+
+        .msg-delete-btn {
+          opacity: 0;
+          transform: scale(0.85);
+          transition: opacity 0.15s, transform 0.15s;
+        }
+        .msg-row.selected .msg-delete-btn {
+          opacity: 1;
+          transform: scale(1);
+        }
+        .bubble-own.selected { outline: 1px solid rgba(255,255,255,0.15); }
 
     /* ── Watermark ── */
 .chat-watermark {
@@ -470,12 +504,25 @@ const Chat = ({ username, roomId, avatar, onLogout }) => {
         {/* z-index 1 so messages sit above watermark */}
         <div className="flex flex-col gap-1 min-h-full justify-end" style={{ position: "relative", zIndex: 1 }}>
           {sortedMessages.map((msg, idx) => {
+            const prevMsg = idx > 0 ? sortedMessages[idx - 1] : null;
+            const dayKey = getLocalDayKey(msg.timestamp);
+            const prevDayKey = prevMsg ? getLocalDayKey(prevMsg.timestamp) : null;
+            const showDaySep = showDaySeparators && dayKey && dayKey !== prevDayKey;
+            const msgKey = msg.id ?? `${msg.sender}-${msg.timestamp}-${idx}`;
+
             if (msg.type === "system") {
               return (
-                <div key={msg._localId ?? `sys-${idx}`}
-                  className="text-center text-[11px] text-zinc-700 py-1 select-none msg-new"
-                  style={{ animationDelay: `${idx * 30}ms` }}>
-                  {msg.content}
+                <div key={msg._localId ?? `sys-${idx}`}>
+                  {showDaySep && (
+                    <div className="date-sep">
+                      <span>{formatDayLabel(msg.timestamp)}</span>
+                    </div>
+                  )}
+                  <div
+                    className="text-center text-[11px] text-zinc-700 py-1 select-none msg-new"
+                    style={{ animationDelay: `${idx * 30}ms` }}>
+                    {msg.content}
+                  </div>
                 </div>
               );
             }
@@ -483,24 +530,47 @@ const Chat = ({ username, roomId, avatar, onLogout }) => {
             const isOwn = msg.sender === username;
             const url = extractUrl(msg.content);
             const isNew = msg._localId && msg._sending;
+            const isSelected = isOwn && selectedMsgKey === msgKey;
 
             return (
-              <div key={msg._localId ?? `${msg.sender}-${msg.timestamp}-${idx}`}
-                className={`msg-row flex items-end gap-2 mb-0.5 ${isOwn ? "flex-row-reverse" : "flex-row"} ${isNew ? 'msg-own' : 'msg-new'}`}
-                style={{ animationDelay: `${Math.min(idx * 30, 500)}ms` }}>
-
-                <img src={isOwn ? avatar : (msg.avatar || avatar)} alt={msg.sender}
-                  className="w-7 h-7 rounded-full object-cover shrink-0 border border-zinc-800" />
-
-                <div className={`flex flex-col gap-0.5 ${isOwn ? "items-end" : "items-start"}`}>
-                  <div className="flex items-center gap-1.5">
-                    {!isOwn && <span className="text-[11px] text-zinc-500 font-medium">{msg.sender}</span>}
-                    <span className="text-[10px] text-zinc-600">{formatLocalTime(msg.timestamp)}</span>
+              <div key={msg._localId ?? msgKey}>
+                {showDaySep && (
+                  <div className="date-sep">
+                    <span>{formatDayLabel(msg.timestamp)}</span>
                   </div>
-                  <div className={`chat-bubble px-3 py-2 text-sm leading-relaxed break-words inline-block ${isOwn ? "bubble-own" : "bubble-other"}`}
-                    style={{ maxWidth: "min(72vw, 340px)" }}>
-                    {renderText(msg.content)}
-                    {url && <LinkPreview url={url} />}
+                )}
+                <div
+                  className={`msg-row flex items-end gap-2 mb-0.5 ${isOwn ? "flex-row-reverse" : "flex-row"} ${isNew ? "msg-own" : "msg-new"} ${isSelected ? "selected" : ""}`}
+                  style={{ animationDelay: `${Math.min(idx * 30, 500)}ms` }}>
+
+                  <img src={isOwn ? avatar : (msg.avatar || avatar)} alt={msg.sender}
+                    className="w-7 h-7 rounded-full object-cover shrink-0 border border-zinc-800" />
+
+                  <div className={`flex flex-col gap-0.5 ${isOwn ? "items-end" : "items-start"}`}>
+                    <div className="flex items-center gap-1.5">
+                      {!isOwn && <span className="text-[11px] text-zinc-500 font-medium">{msg.sender}</span>}
+                      <span className="text-[10px] text-zinc-600">{formatLocalTime(msg.timestamp)}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {isOwn && isSelected && (
+                        <button
+                          type="button"
+                          className="msg-delete-btn p-1.5 rounded-lg text-red-400 hover:bg-red-950/50 hover:text-red-300 transition shrink-0"
+                          onClick={() => handleDeleteMessage(msg)}
+                          aria-label="Delete message"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                      <div
+                        className={`chat-bubble px-3 py-2 text-sm leading-relaxed break-words inline-block ${isOwn ? "bubble-own" : "bubble-other"} ${isOwn ? "cursor-pointer" : ""} ${isSelected ? "selected" : ""}`}
+                        style={{ maxWidth: "min(72vw, 340px)" }}
+                        onClick={isOwn ? () => setSelectedMsgKey(isSelected ? null : msgKey) : undefined}
+                      >
+                        {renderText(msg.content)}
+                        {url && <LinkPreview url={url} />}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
