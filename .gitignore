@@ -20,3 +20,4 @@ chat.db
 
 # system
 .DS_Store
+.env.example

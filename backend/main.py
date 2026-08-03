@@ -78,6 +78,7 @@ async def get_room_messages(
             "messages": [
                 {
                     "type": "message",
+                    "id": m.id,
                     "content": m.content,
                     "sender": m.sender,
                     "timestamp": m.timestamp.isoformat(),
@@ -121,11 +122,12 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
             for msg in recent_messages:
                 await websocket.send_json({
                     "type": "message",
+                    "id": msg.id,
                     "content": msg.content,
                     "sender": msg.sender,
                     "timestamp": msg.timestamp.isoformat(),
                     "avatar": msg.avatar,
-                    "_fromHistory": True,  # Mark as history
+                    "_fromHistory": True,
                 })
         finally:
             db.close()
@@ -172,13 +174,58 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
                         db.add(db_message)
                         db.commit()
                         db.refresh(db_message)
+                        
                         timestamp = db_message.timestamp.isoformat()
+                        message_id = db_message.id
                     finally:
                         db.close()
-                else:
-                    timestamp = datetime.now().isoformat()
 
-                # Broadcast to ALL (including sender for consistency)
+                    await manager.broadcast({
+                        "type": msg_type,
+                        "id": message_id,
+                        "content": message_data.get("content"),
+                        "sender": message_data.get("sender"),
+                        "avatar": message_data.get("avatar"),
+                        "timestamp": timestamp
+                    }, room_id)
+                    continue
+
+                if msg_type == "delete":
+                    db = SessionLocal()
+                    try:
+                        query = db.query(Message).filter(
+                            Message.room_id == room_id,
+                            Message.sender == username,
+                        )
+                        msg_id = message_data.get("id")
+                        if msg_id:
+                            query = query.filter(Message.id == msg_id)
+                        else:
+                            content = message_data.get("content")
+                            if content:
+                                query = query.filter(Message.content == content)
+                            ts = message_data.get("timestamp")
+                            if ts:
+                                query = query.filter(Message.timestamp == ts)
+
+                        db_message = query.first()
+                        if db_message:
+                            deleted = {
+                                "type": "delete",
+                                "id": db_message.id,
+                                "sender": username,
+                                "timestamp": db_message.timestamp.isoformat(),
+                                "content": db_message.content,
+                            }
+                            db.delete(db_message)
+                            db.commit()
+                            await manager.broadcast(deleted, room_id)
+                    finally:
+                        db.close()
+                    continue
+
+                timestamp = datetime.now().isoformat()
+
                 await manager.broadcast({
                     "type": msg_type,
                     "content": message_data.get("content"),
@@ -213,6 +260,10 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
                 "type": "room_count",
                 "count": manager.get_room_count(room_id)
             }, room_id)
+
+@app.get("/discover")
+async def discover_rooms():
+    return manager.discover()
 
 @app.get("/preview")
 async def link_preview(url: str):
